@@ -1,0 +1,95 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email_verified == true && request.auth.token.email == 'bsrat391@gmail.com';
+    }
+
+    function isOwner(res) {
+      return res.data.authorId == request.auth.uid || res.data.senderId == request.auth.uid;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    function isValidNote(data) {
+      return data.keys().hasAll(['title', 'subject', 'type', 'fileUrl', 'size', 'author', 'authorId', 'createdAt']) &&
+             data.keys().size() == 8 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.subject is string && data.subject.size() > 0 && data.subject.size() <= 100 &&
+             data.type is string && (data.type == 'pdf' || data.type == 'image' || data.type == 'word' || data.type == 'text' || data.type == 'spreadsheet' || data.type == 'presentation') &&
+             data.fileUrl is string && data.fileUrl.size() > 0 && data.fileUrl.size() <= 1048000 &&
+             data.size is string && data.size.size() > 0 && data.size.size() <= 20 &&
+             data.author is string && data.author.size() > 0 && data.author.size() <= 100 &&
+             data.authorId is string && data.authorId == request.auth.uid &&
+             data.createdAt is timestamp;
+    }
+
+    match /notes/{noteId} {
+      allow read: if isSignedIn() && request.auth.token.email_verified == true;
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(noteId) && isValidNote(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && request.auth.token.email_verified == true && isValidId(noteId) && (isAdmin() || existing().authorId == request.auth.uid) && isValidNote(incoming()) && incoming().authorId == existing().authorId && incoming().createdAt == existing().createdAt;
+      allow delete: if isSignedIn() && request.auth.token.email_verified == true && isValidId(noteId) && (isAdmin() || existing().authorId == request.auth.uid);
+    }
+
+    function isValidChatMessage(data) {
+      let isBasic = data.keys().hasAll(['text', 'sender', 'senderId', 'time', 'createdAt']) &&
+             data.keys().size() in [5, 6, 7, 8] &&
+             (data.text is string || data.text == null) && (data.text == null || data.text.size() <= 1000) &&
+             data.sender is string && data.sender.size() > 0 && data.sender.size() <= 100 &&
+             data.senderId is string && data.senderId == request.auth.uid &&
+             data.time is string && data.time.size() > 0 && data.time.size() <= 20 &&
+             data.createdAt is timestamp;
+      let hasMedia = (!data.keys().hasAny(['mediaUrl']) || (data.mediaUrl == null || (data.mediaUrl is string && data.mediaUrl.size() <= 2000))) &&
+             (!data.keys().hasAny(['mediaType']) || (data.mediaType == null || (data.mediaType is string && data.mediaType.size() <= 50))) &&
+             (!data.keys().hasAny(['mediaName']) || (data.mediaName == null || (data.mediaName is string && data.mediaName.size() <= 200)));
+      return isBasic && hasMedia;
+    }
+
+    match /chat_messages/{messageId} {
+      allow read: if isSignedIn() && request.auth.token.email_verified == true;
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(messageId) && isValidChatMessage(incoming()) && incoming().createdAt == request.time;
+      allow update: if false; // Messages are immutable
+      allow delete: if isSignedIn() && request.auth.token.email_verified == true && isValidId(messageId) && (isAdmin() || existing().senderId == request.auth.uid);
+    }
+
+    function isValidSubject(data) {
+      return data.keys().hasAll(['name']) &&
+             data.keys().size() == 1 &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100;
+    }
+
+    match /subjects/{subjectId} {
+      allow read: if isSignedIn() && request.auth.token.email_verified == true;
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(subjectId) && isValidSubject(incoming());
+      allow update, delete: if isAdmin() && isValidId(subjectId);
+    }
+
+    function isValidDocumentState(data) {
+      return data.keys().hasAll(['content', 'updatedAt', 'lastUpdaterId']) &&
+             data.keys().size() == 3 &&
+             data.content is string && data.content.size() <= 10000 &&
+             data.lastUpdaterId is string && data.lastUpdaterId == request.auth.uid &&
+             data.updatedAt is timestamp;
+    }
+
+    match /documents/{docId} {
+      allow read: if isSignedIn() && request.auth.token.email_verified == true;
+      allow create: if isSignedIn() && request.auth.token.email_verified == true && isValidId(docId) && isValidDocumentState(incoming()) && incoming().updatedAt == request.time;
+      allow update: if isSignedIn() && request.auth.token.email_verified == true && isValidId(docId) && isValidDocumentState(incoming()) && incoming().updatedAt == request.time;
+      allow delete: if isAdmin() && isValidId(docId);
+    }
+  }
+}

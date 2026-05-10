@@ -1,0 +1,58 @@
+{
+  "entities": {
+    "Note": {
+      "title": "Note",
+      "description": "A study note uploaded by a user",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string" },
+        "subject": { "type": "string" },
+        "type": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "size": { "type": "string" },
+        "author": { "type": "string" },
+        "authorId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "subject", "type", "fileUrl", "size", "author", "authorId", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "Chat Message",
+      "description": "A message in the study group chat",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string" },
+        "sender": { "type": "string" },
+        "senderId": { "type": "string" },
+        "time": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["text", "sender", "senderId", "time", "createdAt"]
+    },
+    "DocumentState": {
+      "title": "Document State",
+      "description": "Live document content",
+      "type": "object",
+      "properties": {
+        "content": {"type": "string"},
+        "updatedAt": {"type": "number"},
+        "lastUpdaterId": {"type": "string"}
+      },
+      "required": ["content", "updatedAt", "lastUpdaterId"]
+    }
+  },
+  "firestore": {
+    "/notes/{noteId}": {
+      "schema": "Note",
+      "description": "Collections of study notes"
+    },
+    "/chat_messages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "Collections of chat messages"
+    },
+    "/documents/{docId}": {
+      "schema": "DocumentState",
+      "description": "Shared document"
+    }
+  }
+}
